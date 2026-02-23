@@ -1,0 +1,8 @@
+{
+  "/page": "app/page.js",
+  "/analytics/page": "app/analytics/page.js",
+  "/sourcing/page": "app/sourcing/page.js",
+  "/diversity/page": "app/diversity/page.js",
+  "/predictive/page": "app/predictive/page.js",
+  "/linkedin/page": "app/linkedin/page.js"
+}
