@@ -16,30 +16,32 @@ export default function TabNavigation() {
   const pathname = usePathname();
 
   return (
-    <nav className="mt-6 border-b border-gray-200">
-      <ul className="-mb-px flex flex-wrap gap-4">
-        {tabs.map((tab) => {
-          const isActive =
-            tab.href === "/"
-              ? pathname === "/"
-              : pathname.startsWith(tab.href);
+    <nav className="mt-2">
+      <div className="rounded-xl bg-slate-100 p-1">
+        <ul className="flex flex-wrap gap-1">
+          {tabs.map((tab) => {
+            const isActive =
+              tab.href === "/"
+                ? pathname === "/"
+                : pathname.startsWith(tab.href);
 
-          return (
-            <li key={tab.href}>
-              <Link
-                href={tab.href}
-                className={`inline-flex items-center border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
-                  isActive
-                    ? "border-blue-600 text-blue-700"
-                    : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"
-                }`}
-              >
-                {tab.label}
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
+            return (
+              <li key={tab.href} className="flex-1">
+                <Link
+                  href={tab.href}
+                  className={`flex w-full items-center justify-center rounded-lg px-3 py-2 text-sm transition-colors ${
+                    isActive
+                      ? "bg-white text-slate-900 shadow-sm font-medium"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  {tab.label}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
     </nav>
   );
 }

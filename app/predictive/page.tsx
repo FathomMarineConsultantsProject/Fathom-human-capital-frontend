@@ -1,14 +1,18 @@
 import PanelCard from "@/components/PanelCard";
+import { LineChart, AlertTriangle } from "lucide-react";
 
 export default function PredictivePage() {
   return (
-    <div className="flex flex-col gap-6 lg:flex-row">
-      <PanelCard title="Hiring Forecast">
-        <p className="text-sm text-gray-500">No data available</p>
+    <div className="grid gap-6 md:grid-cols-2">
+      <PanelCard title="Hiring Forecast" icon={<LineChart className="h-4 w-4" />}>
+        <p className="text-sm text-slate-400">No data available</p>
       </PanelCard>
 
-      <PanelCard title="Skills Gap Analysis">
-        <p className="text-sm text-gray-500">No data available</p>
+      <PanelCard
+        title="Skills Gap Analysis"
+        icon={<AlertTriangle className="h-4 w-4" />}
+      >
+        <p className="text-sm text-slate-400">No data available</p>
       </PanelCard>
     </div>
   );

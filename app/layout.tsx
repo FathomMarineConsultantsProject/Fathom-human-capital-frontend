@@ -15,9 +15,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <div className="min-h-screen bg-background">
+        <div className="min-h-screen bg-slate-50">
           <Header />
-          <main>{children}</main>
+          <main className="px-6 py-4">
+            <div className="mx-auto max-w-7xl">{children}</div>
+          </main>
         </div>
       </body>
     </html>
