@@ -1,16 +1,33 @@
 import PanelCard from "@/components/PanelCard";
 import { Globe } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
-const sources = [
-  { label: "LinkedIn", value: "0" },
-  { label: "Job Board", value: "0" },
-  { label: "Referral", value: "0" },
-  { label: "Company", value: "0" },
-  { label: "Agency", value: "0" },
-  { label: "Other", value: "0" }
-];
+export default async function SourcingPage() {
+  const { data: jobs } = await supabase.from("jobs").select("*");
+  const { data: applications } = await supabase.from("applications").select("*");
 
-export default function SourcingPage() {
+  const jobList = jobs ?? [];
+  const applicationList = applications ?? [];
+
+  const sourceCounts = applicationList.reduce(
+    (acc: Record<string, number>, app: any) => {
+      const source = app.source as string | null;
+      if (!source) return acc;
+      acc[source] = (acc[source] || 0) + 1;
+      return acc;
+    },
+    {} as Record<string, number>
+  );
+
+  const sources = [
+    { label: "LinkedIn", key: "LinkedIn" },
+    { label: "Job Board", key: "Job Board" },
+    { label: "Referral", key: "Referral" },
+    { label: "Company", key: "Company Website" },
+    { label: "Agency", key: "Agency" },
+    { label: "Other", key: "Other" }
+  ];
+
   return (
     <div className="w-full">
       <PanelCard
@@ -25,7 +42,7 @@ export default function SourcingPage() {
             >
               <p className="text-sm text-slate-600">{source.label}</p>
               <p className="mt-1 text-lg font-semibold text-slate-900">
-                {source.value}
+                {String(sourceCounts[source.key] ?? 0)}
               </p>
             </div>
           ))}
