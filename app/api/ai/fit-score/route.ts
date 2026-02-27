@@ -31,6 +31,7 @@ export async function POST(req: Request) {
         years_experience,
         expected_salary,
         education,
+        resume_text,
         job:jobs (
           title,
           required_skills,
@@ -153,6 +154,9 @@ Skills: ${candidateSkills.join(", ")}
 Experience: ${application.years_experience} years
 Expected Salary: ${application.expected_salary}
 Education: ${application.education}
+
+Full Resume Text:
+${application.resume_text}
 
 Write:
 - A short strengths paragraph
