@@ -41,7 +41,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const job = application.job;
+    const job: any = (application as any).job || {};
 
     // -------------------------
     // IMPROVED MATCH SCORING
