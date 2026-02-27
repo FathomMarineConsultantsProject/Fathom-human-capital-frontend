@@ -3,6 +3,13 @@ import { supabase } from "@/lib/supabase";
 
 console.log("OPENROUTER KEY:", process.env.OPENROUTER_API_KEY);
 
+type JoinedJob = {
+  title: string;
+  required_skills: string[];
+  salary_budget: number;
+  seniority: string;
+};
+
 export async function POST(req: Request) {
   try {
     const { applicationId } = await req.json();
@@ -41,7 +48,21 @@ export async function POST(req: Request) {
       );
     }
 
-    const job: any = (application as any).job || {};
+    const rawJob = application.job as JoinedJob | JoinedJob[] | null;
+    let job: JoinedJob | null = null;
+
+    if (Array.isArray(rawJob)) {
+      job = (rawJob[0] as JoinedJob) ?? null;
+    } else {
+      job = (rawJob as JoinedJob) ?? null;
+    }
+
+    if (!job) {
+      return NextResponse.json(
+        { error: "Job not found for application" },
+        { status: 404 }
+      );
+    }
 
     // -------------------------
     // IMPROVED MATCH SCORING
