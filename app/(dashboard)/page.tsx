@@ -1,7 +1,10 @@
+"use client";
+
 import MetricCard from "@/components/MetricCard";
 import PanelCard from "@/components/PanelCard";
 import { Briefcase, Users, Clock, DollarSign } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { useEffect, useState } from "react";
 
 type Job = {
   id: string;
@@ -10,6 +13,7 @@ type Job = {
   status: "active" | "closed";
   created_at: string;
   linkedin_posted?: boolean;
+  recruiting_cost?: number;
 };
 
 type Application = {
@@ -22,35 +26,67 @@ type Application = {
   gender: string | null;
 };
 
-export default async function OverviewPage() {
-  console.log("SUPABASE URL:", process.env.NEXT_PUBLIC_SUPABASE_URL);
+export default function OverviewPage() {
+  const [jobList, setJobList] = useState<Job[]>([]);
+  const [applicationList, setApplicationList] = useState<Application[]>([]);
 
-  const { data: jobs, error: jobsError } = await supabase
-    .from("jobs")
-    .select(
-      "id, title, department, status, created_at, recruiting_cost, linkedin_posted"
-    )
-    .returns<any[]>();
-  const { data: applications, error: applicationsError } = await supabase
-    .from("applications")
-    .select("*")
-    .returns<any[]>();
+  const fetchDashboardData = async () => {
+    const { data: jobs, error: jobsError } = await supabase
+      .from("jobs")
+      .select(
+        "id, title, department, status, created_at, recruiting_cost, linkedin_posted"
+      )
+      .returns<any[]>();
+    const { data: applications, error: applicationsError } = await supabase
+      .from("applications")
+      .select("*")
+      .returns<any[]>();
 
-  if (jobsError) {
-    console.error("Jobs fetch error:", jobsError);
-  }
+    if (jobsError) {
+      console.error("Jobs fetch error:", jobsError);
+    }
 
-  if (applicationsError) {
-    console.error("Applications fetch error:", applicationsError);
-  }
+    if (applicationsError) {
+      console.error("Applications fetch error:", applicationsError);
+    }
 
-  const jobList = (jobs ?? []) as Job[];
-  const applicationList = (applications ?? []) as Application[];
+    setJobList((jobs ?? []) as Job[]);
+    setApplicationList((applications ?? []) as Application[]);
+  };
 
-  console.log("Fetched jobs:", jobList);
-  console.log("Fetched applications:", applicationList);
-  console.log("Jobs from DB:", jobList);
-  console.log("Applications from DB:", applicationList);
+  useEffect(() => {
+    fetchDashboardData();
+
+    const channel = supabase
+      .channel("dashboard-updates")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "applications"
+        },
+        () => {
+          fetchDashboardData();
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "jobs"
+        },
+        () => {
+          fetchDashboardData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   const activeJobs = jobList.filter((job) => job.status === "active").length;
   const totalApplications = applicationList.length;
@@ -59,7 +95,6 @@ export default async function OverviewPage() {
     (app) => app.status === "interview"
   );
   const totalHires = interviews.length;
-  console.log("Total Hires (interview count):", totalHires);
 
   const averageTimeToHire =
     interviews.length > 0
@@ -80,13 +115,11 @@ export default async function OverviewPage() {
     (sum, job) => sum + (Number((job as any).recruiting_cost) || 0),
     0
   );
-  console.log("Total Recruiting Cost:", totalRecruitingCost);
 
   const costPerHire =
     totalHires > 0
       ? Math.round(totalRecruitingCost / totalHires)
       : 0;
-  console.log("Cost Per Hire:", costPerHire);
 
   const metrics = [
     {
