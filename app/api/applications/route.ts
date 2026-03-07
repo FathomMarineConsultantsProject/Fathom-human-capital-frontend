@@ -34,11 +34,26 @@ async function parseResumeAndEnrich(
     const res = await fetch(resumeUrl);
     if (!res.ok) throw new Error("Failed to fetch resume");
     const buffer = await res.arrayBuffer();
-    const buf = Buffer.from(buffer);
-    const { PDFParse } = require("pdf-parse");
-    const parser = new PDFParse({ data: buf });
-    const parsed = await parser.getText();
-    resumeText = parsed.text || "";
+    const uint8Array = new Uint8Array(buffer);
+
+    const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    const pdf = await pdfjs.getDocument({ data: uint8Array }).promise;
+
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      const pageText = (content.items as any[])
+        .map((item: any) => item.str)
+        .join(" ");
+      resumeText += pageText + " ";
+    }
+
+    resumeText = resumeText.trim();
+    console.log("Extracted resume length:", resumeText.length);
+
+    if (!resumeText) {
+      throw new Error("Failed to extract text from resume");
+    }
   } catch (err) {
     console.error("Resume PDF parse error:", err);
     return;
