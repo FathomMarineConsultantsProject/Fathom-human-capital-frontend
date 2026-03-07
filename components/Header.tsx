@@ -1,6 +1,7 @@
 import TabNavigation from "./TabNavigation";
 import { Button } from "./ui/Button";
 import { Linkedin, Download, Plus } from "lucide-react";
+import Link from "next/link";
 
 export default function Header() {
   return (
@@ -16,18 +17,22 @@ export default function Header() {
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <Button variant="accent">
-              <Linkedin className="h-4 w-4" />
-              <span>LinkedIn Integration</span>
-            </Button>
+            <Link href="/api/linkedin/login">
+              <Button variant="accent">
+                <Linkedin className="h-4 w-4" />
+                <span>LinkedIn Integration</span>
+              </Button>
+            </Link>
             <Button variant="secondary">
               <Download className="h-4 w-4" />
               <span>Export Analytics</span>
             </Button>
-            <Button variant="primary">
-              <Plus className="h-4 w-4" />
-              <span>Post New Job</span>
-            </Button>
+            <Link href="/jobs/new">
+              <Button variant="primary">
+                <Plus className="h-4 w-4" />
+                <span>Post New Job</span>
+              </Button>
+            </Link>
           </div>
         </div>
         <TabNavigation />

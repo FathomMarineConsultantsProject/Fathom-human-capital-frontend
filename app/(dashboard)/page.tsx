@@ -9,6 +9,7 @@ type Job = {
   department: string;
   status: "active" | "closed";
   created_at: string;
+  linkedin_posted?: boolean;
 };
 
 type Application = {
@@ -26,7 +27,9 @@ export default async function OverviewPage() {
 
   const { data: jobs, error: jobsError } = await supabase
     .from("jobs")
-    .select("id, title, department, status, created_at, recruiting_cost")
+    .select(
+      "id, title, department, status, created_at, recruiting_cost, linkedin_posted"
+    )
     .returns<any[]>();
   const { data: applications, error: applicationsError } = await supabase
     .from("applications")
@@ -134,9 +137,16 @@ export default async function OverviewPage() {
                   </p>
                   <p className="text-xs text-slate-500">{job.department}</p>
                 </div>
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-700">
-                  {job.status}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-700">
+                    {job.status}
+                  </span>
+                  {job.linkedin_posted === true && (
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-700">
+                      ✅ Published to LinkedIn
+                    </span>
+                  )}
+                </div>
               </div>
             ))
           )}
