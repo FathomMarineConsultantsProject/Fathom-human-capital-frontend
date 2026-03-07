@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 
+export const runtime = "nodejs";
+
 export async function GET() {
   const { data, error } = await supabase
     .from("applications")
@@ -33,16 +35,10 @@ async function parseResumeAndEnrich(
     if (!res.ok) throw new Error("Failed to fetch resume");
     const buffer = await res.arrayBuffer();
     const buf = Buffer.from(buffer);
-    const pdfModule = await import("pdf-parse");
-    const pdf = pdfModule.default;
-    if (typeof pdf === "function") {
-      const parsed = await pdf(buf);
-      resumeText = (parsed?.text ?? "").trim();
-    } else if (pdfModule.PDFParse) {
-      const parser = new pdfModule.PDFParse({ data: buf });
-      const result = await parser.getText();
-      resumeText = (result?.text ?? "").trim();
-    }
+    const { PDFParse } = require("pdf-parse");
+    const parser = new PDFParse({ data: buf });
+    const parsed = await parser.getText();
+    resumeText = parsed.text || "";
   } catch (err) {
     console.error("Resume PDF parse error:", err);
     return;
