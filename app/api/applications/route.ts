@@ -35,6 +35,13 @@ export async function POST(req: Request) {
       );
     }
 
+    const skillsArray =
+      skills != null && typeof skills === "string"
+        ? skills.split(",").map((s) => s.trim()).filter(Boolean)
+        : Array.isArray(skills)
+          ? skills
+          : null;
+
     const { data, error } = await supabase
       .from("applications")
       .insert({
@@ -42,7 +49,7 @@ export async function POST(req: Request) {
         name,
         email: email ?? null,
         phone: phone ?? null,
-        skills: skills ?? null,
+        skills: skillsArray,
         years_experience: years_experience ?? null,
         expected_salary: expected_salary ?? null,
         education: education ?? null,
