@@ -18,7 +18,7 @@ export async function GET() {
 
 async function extractPdfText(buffer: Buffer): Promise<string> {
   return new Promise((resolve, reject) => {
-    const pdfParser = new PDFParser(null, 1);
+    const pdfParser = new PDFParser(undefined, true);
 
     pdfParser.on("pdfParser_dataError", (errData: unknown) => {
       reject((errData as { parserError?: Error }).parserError ?? errData);

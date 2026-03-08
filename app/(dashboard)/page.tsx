@@ -16,14 +16,23 @@ type Job = {
   recruiting_cost?: number;
 };
 
+type ApplicationStatus =
+  | "applied"
+  | "screening"
+  | "interview"
+  | "offer"
+  | "hired"
+  | "rejected";
+
 type Application = {
   id: string;
-  name: string;
-  status: "applied" | "screening" | "interview";
-  applied_at: string;
   job_id: string | null;
-  source: string | null;
-  gender: string | null;
+  name: string;
+  status: ApplicationStatus;
+  source?: string | null;
+  gender?: string | null;
+  applied_at?: string | null;
+  hired_at?: string | null;
 };
 
 export default function OverviewPage() {
@@ -120,9 +129,11 @@ export default function OverviewPage() {
     totalHires > 0
       ? Math.round(
           interviews.reduce((acc, app) => {
-            const appliedDate = new Date(app.applied_at).getTime();
+            const appliedDate = app.applied_at
+              ? new Date(app.applied_at).getTime()
+              : Date.now();
             const hiredDate = app.hired_at
-              ? new Date((app as any).hired_at).getTime()
+              ? new Date(app.hired_at).getTime()
               : Date.now();
             const diffDays =
               (hiredDate - appliedDate) / (1000 * 60 * 60 * 24);
@@ -234,7 +245,9 @@ export default function OverviewPage() {
                       {app.name}
                     </p>
                     <p className="text-xs text-slate-500">
-                      {new Date(app.applied_at).toLocaleDateString()}
+                      {app.applied_at
+                        ? new Date(app.applied_at).toLocaleDateString()
+                        : "—"}
                     </p>
                   </div>
                 </div>
