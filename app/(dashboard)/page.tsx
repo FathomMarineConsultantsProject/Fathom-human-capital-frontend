@@ -2,7 +2,7 @@
 
 import MetricCard from "@/components/MetricCard";
 import PanelCard from "@/components/PanelCard";
-import { Briefcase, Users, Clock, DollarSign } from "lucide-react";
+import { Briefcase, Users, Clock, DollarSign, Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useEffect, useState } from "react";
 
@@ -29,6 +29,8 @@ type Application = {
 export default function OverviewPage() {
   const [jobList, setJobList] = useState<Job[]>([]);
   const [applicationList, setApplicationList] = useState<Application[]>([]);
+  const [deleteJobId, setDeleteJobId] = useState<string | null>(null);
+  const [deletingJobId, setDeletingJobId] = useState<string | null>(null);
 
   const fetchDashboardData = async () => {
     const { data: jobs, error: jobsError } = await supabase
@@ -91,23 +93,41 @@ export default function OverviewPage() {
   const activeJobs = jobList.filter((job) => job.status === "active").length;
   const totalApplications = applicationList.length;
 
+  async function handleDeleteJob(jobId: string) {
+    setDeletingJobId(jobId);
+    try {
+      const res = await fetch(`/api/jobs/${jobId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to delete job");
+      }
+      setJobList((prev) => prev.filter((j) => j.id !== jobId));
+      setApplicationList((prev) => prev.filter((a) => a.job_id !== jobId));
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setDeletingJobId(null);
+      setDeleteJobId(null);
+    }
+  }
+
   const interviews = applicationList.filter(
-    (app) => app.status === "interview"
+    (app) => app.status === "hired"
   );
   const totalHires = interviews.length;
 
   const averageTimeToHire =
-    interviews.length > 0
+    totalHires > 0
       ? Math.round(
           interviews.reduce((acc, app) => {
-            const job = jobList.find((j) => j.id === app.job_id);
-            if (!job) return acc;
-            const jobDate = new Date(job.created_at).getTime();
             const appliedDate = new Date(app.applied_at).getTime();
+            const hiredDate = app.hired_at
+              ? new Date((app as any).hired_at).getTime()
+              : Date.now();
             const diffDays =
-              (appliedDate - jobDate) / (1000 * 60 * 60 * 24);
+              (hiredDate - appliedDate) / (1000 * 60 * 60 * 24);
             return acc + diffDays;
-          }, 0) / interviews.length
+          }, 0) / totalHires
         )
       : 0;
 
@@ -179,6 +199,15 @@ export default function OverviewPage() {
                       ✅ Published to LinkedIn
                     </span>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => setDeleteJobId(job.id)}
+                    className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                    aria-label="Delete job"
+                    disabled={deletingJobId === job.id}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                 </div>
               </div>
             ))
@@ -217,6 +246,33 @@ export default function OverviewPage() {
           )}
         </PanelCard>
       </section>
+
+      {deleteJobId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
+            <p className="text-sm font-medium text-slate-900">
+              Are you sure you want to delete this job posting?
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteJobId(null)}
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDeleteJob(deleteJobId)}
+                disabled={deletingJobId !== null}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {deletingJobId ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

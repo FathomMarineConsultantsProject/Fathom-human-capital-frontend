@@ -1,19 +1,39 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
-import { Copy, ExternalLink, Check } from "lucide-react";
+import { Copy, ExternalLink, Check, ChevronDown } from "lucide-react";
 
-const APPLICATION_BASE_URL = "https://fathom-human-capital-frontend.vercel.app";
+const APPLICATION_BASE_URL =
+  "https://fathom-human-capital-frontend.vercel.app";
 
 type JobFormState = {
   title: string;
   department: string;
-  required_skills: string;
-  salary_budget: string;
   seniority: string;
 };
+
+type Currency = "INR" | "USD" | "EUR";
+
+function formatCurrencyInput(
+  raw: string,
+  currency: Currency,
+  symbol: string
+) {
+  const digits = raw.replace(/[^\d]/g, "");
+  if (!digits) {
+    return { display: "", numeric: null as number | null };
+  }
+  const numeric = Number(digits);
+  const formatter = new Intl.NumberFormat(
+    currency === "INR" ? "en-IN" : "en-US"
+  );
+  return {
+    display: `${symbol}${formatter.format(numeric)}`,
+    numeric
+  };
+}
 
 export default function NewJobPage() {
   const router = useRouter();
@@ -22,12 +42,52 @@ export default function NewJobPage() {
   const [form, setForm] = useState<JobFormState>({
     title: "",
     department: "",
-    required_skills: "",
-    salary_budget: "",
     seniority: ""
   });
   const [createdJobId, setCreatedJobId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [requiredSkills, setRequiredSkills] = useState<string[]>([]);
+  const [requiredSkillInput, setRequiredSkillInput] = useState("");
+  const [salaryCurrency, setSalaryCurrency] = useState<Currency>("INR");
+  const [salaryBudget, setSalaryBudget] = useState<number | null>(null);
+  const [salaryBudgetInput, setSalaryBudgetInput] = useState("");
+
+  const salaryCurrencySymbol = useMemo(
+    () =>
+      ({
+        INR: "₹",
+        USD: "$",
+        EUR: "€"
+      }[salaryCurrency]),
+    [salaryCurrency]
+  );
+
+  function addRequiredSkill(raw: string) {
+    const value = raw.trim();
+    if (!value) return;
+    setRequiredSkills((prev) => {
+      if (prev.includes(value)) return prev; // prevent exact duplicates
+      return [...prev, value];
+    });
+    setRequiredSkillInput("");
+  }
+
+  function removeRequiredSkill(skill: string) {
+    setRequiredSkills((prev) => prev.filter((s) => s !== skill));
+  }
+
+  useEffect(() => {
+    if (salaryBudget != null) {
+      const { display } = formatCurrencyInput(
+        salaryBudget.toString(),
+        salaryCurrency,
+        salaryCurrencySymbol
+      );
+      setSalaryBudgetInput(display);
+    } else {
+      setSalaryBudgetInput("");
+    }
+  }, [salaryBudget, salaryCurrency, salaryCurrencySymbol]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -56,6 +116,19 @@ export default function NewJobPage() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!form.title.trim() || !form.department.trim() || !form.seniority.trim()) {
+      setError("Please fill in all required fields.");
+      return;
+    }
+    if (!requiredSkills.length) {
+      setError("Please add at least one skill");
+      return;
+    }
+    if (salaryBudget == null) {
+      setError("Please enter a salary budget.");
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setCreatedJobId(null);
@@ -67,11 +140,8 @@ export default function NewJobPage() {
         body: JSON.stringify({
           title: form.title,
           department: form.department,
-          required_skills: form.required_skills
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean),
-          salary_budget: Number(form.salary_budget) || 0,
+          required_skills: requiredSkills,
+          salary_budget: salaryBudget,
           seniority: form.seniority,
           status: "active"
         })
@@ -166,7 +236,15 @@ export default function NewJobPage() {
         </p>
       )}
 
-      <form onSubmit={onSubmit} className="space-y-4">
+      <form
+        onSubmit={onSubmit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+          }
+        }}
+        className="space-y-4"
+      >
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <label className="space-y-1 text-sm text-slate-700">
             <span>Title</span>
@@ -189,24 +267,86 @@ export default function NewJobPage() {
         </div>
 
         <label className="space-y-1 text-sm text-slate-700">
-          <span>Required Skills (comma-separated)</span>
-          <input
-            value={form.required_skills}
-            onChange={(e) => setForm({ ...form, required_skills: e.target.value })}
-            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2"
-            placeholder="e.g. React, TypeScript, REST APIs"
-          />
+          <span>Required Skills</span>
+          <div className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2">
+            <div className="flex flex-wrap gap-2">
+              {requiredSkills.map((skill) => (
+                <span
+                  key={skill}
+                  className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-800"
+                >
+                  {skill}
+                  <button
+                    type="button"
+                    className="text-slate-500 hover:text-slate-700"
+                    onClick={() => removeRequiredSkill(skill)}
+                    aria-label={`Remove ${skill}`}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+              <input
+                type="text"
+                value={requiredSkillInput}
+                onChange={(e) => setRequiredSkillInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === ",") {
+                    e.preventDefault();
+                    addRequiredSkill(requiredSkillInput);
+                  } else if (
+                    e.key === "Backspace" &&
+                    !requiredSkillInput &&
+                    requiredSkills.length > 0
+                  ) {
+                    removeRequiredSkill(
+                      requiredSkills[requiredSkills.length - 1]
+                    );
+                  }
+                }}
+                className="flex-1 min-w-[120px] border-0 bg-transparent text-sm outline-none"
+                placeholder="Type a skill and press Enter"
+              />
+            </div>
+          </div>
         </label>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <label className="space-y-1 text-sm text-slate-700">
             <span>Salary Budget</span>
-            <input
-              value={form.salary_budget}
-              onChange={(e) => setForm({ ...form, salary_budget: e.target.value })}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2"
-              inputMode="numeric"
-            />
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="relative w-full sm:w-32">
+                <select
+                  className="w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 py-2 pr-8 text-sm"
+                  value={salaryCurrency}
+                  onChange={(e) =>
+                    setSalaryCurrency(e.target.value as Currency)
+                  }
+                >
+                  <option value="INR">INR (₹)</option>
+                  <option value="USD">USD ($)</option>
+                  <option value="EUR">EUR (€)</option>
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+              </div>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={salaryBudgetInput}
+                onChange={(e) => {
+                  const { display, numeric } = formatCurrencyInput(
+                    e.target.value,
+                    salaryCurrency,
+                    salaryCurrencySymbol
+                  );
+                  setSalaryBudgetInput(display);
+                  setSalaryBudget(numeric);
+                }}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                placeholder={`${salaryCurrencySymbol}1,00,000`}
+                required
+              />
+            </div>
           </label>
           <label className="space-y-1 text-sm text-slate-700">
             <span>Seniority</span>
@@ -214,6 +354,7 @@ export default function NewJobPage() {
               value={form.seniority}
               onChange={(e) => setForm({ ...form, seniority: e.target.value })}
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2"
+              required
             />
           </label>
         </div>
@@ -221,7 +362,14 @@ export default function NewJobPage() {
         <button
           type="submit"
           className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
-          disabled={loading}
+          disabled={
+            loading ||
+            !form.title.trim() ||
+            !form.department.trim() ||
+            !form.seniority.trim() ||
+            !requiredSkills.length ||
+            salaryBudget == null
+          }
         >
           {loading ? "Publishing..." : "Publish"}
         </button>

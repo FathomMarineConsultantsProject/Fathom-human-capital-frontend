@@ -14,15 +14,13 @@ export async function POST(req: Request) {
       );
     }
 
-    const filePath = `${jobId}/${Date.now()}-${file.name}`;
-
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = new Uint8Array(arrayBuffer);
+    const fileExt = file.name.split(".").pop() || "pdf";
+    const fileName = `${jobId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
 
     const { data, error } = await supabase.storage
       .from("Resumes")
-      .upload(filePath, buffer, {
-        contentType: file.type || "application/pdf",
+      .upload(fileName, file, {
+        contentType: "application/pdf",
         upsert: false
       });
 
@@ -35,7 +33,7 @@ export async function POST(req: Request) {
 
     const { data: publicUrl } = supabase.storage
       .from("Resumes")
-      .getPublicUrl(data.path);
+      .getPublicUrl(fileName);
 
     return NextResponse.json({ resume_url: publicUrl.publicUrl });
   } catch (err: unknown) {

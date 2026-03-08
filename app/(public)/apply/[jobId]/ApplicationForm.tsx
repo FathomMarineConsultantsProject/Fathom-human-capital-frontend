@@ -1,34 +1,112 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/Button";
+import PhoneInput from "react-phone-number-input/input";
+import { isValidPhoneNumber } from "react-phone-number-input";
+import { ChevronDown } from "lucide-react";
+import "react-phone-number-input/style.css";
 
 type Props = { jobId: string };
 
+type Currency = "INR" | "USD" | "EUR";
+
+function formatCurrencyInput(
+  raw: string,
+  currency: Currency,
+  symbol: string
+) {
+  const digits = raw.replace(/[^\d]/g, "");
+  if (!digits) {
+    return { display: "", numeric: null as number | null };
+  }
+  const numeric = Number(digits);
+  const formatter = new Intl.NumberFormat(
+    currency === "INR" ? "en-IN" : "en-US"
+  );
+  return {
+    display: `${symbol}${formatter.format(numeric)}`,
+    numeric
+  };
+}
+
 export default function ApplicationForm({ jobId }: Props) {
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [form, setForm] = useState({
     name: "",
     email: "",
-    phone: "",
-    skills: "",
     years_experience: "",
-    expected_salary: "",
-    education: ""
+    education: "",
+    source: "",
+    gender: ""
   });
+  const [phone, setPhone] = useState<string | undefined>();
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [skills, setSkills] = useState<string[]>([]);
+  const [skillInput, setSkillInput] = useState("");
+  const [expectedSalary, setExpectedSalary] = useState<number | null>(null);
+  const [expectedSalaryInput, setExpectedSalaryInput] = useState("");
+  const [currency, setCurrency] = useState<Currency>("INR");
   const [resumeFile, setResumeFile] = useState<File | null>(null);
+
+  const currencySymbol = useMemo(
+    () =>
+      ({
+        INR: "₹",
+        USD: "$",
+        EUR: "€"
+      }[currency]),
+    [currency]
+  );
+
+  function addSkill(raw: string) {
+    const value = raw.trim();
+    if (!value) return;
+    setSkills((prev) => {
+      if (prev.includes(value)) return prev; // prevent exact duplicates only
+      return [...prev, value];
+    });
+    setSkillInput("");
+  }
+
+  function removeSkill(skill: string) {
+    setSkills((prev) => prev.filter((s) => s !== skill));
+  }
+
+  useEffect(() => {
+    if (expectedSalary != null) {
+      const { display } = formatCurrencyInput(
+        expectedSalary.toString(),
+        currency,
+        currencySymbol
+      );
+      setExpectedSalaryInput(display);
+    } else {
+      setExpectedSalaryInput("");
+    }
+  }, [currency, currencySymbol, expectedSalary]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setUploadError(null);
+
+    if (phone && !isValidPhoneNumber(phone)) {
+      setLoading(false);
+      setPhoneError("Please enter a valid phone number");
+      return;
+    }
 
     try {
       let resumeUrl: string | null = null;
 
       if (resumeFile) {
+        setUploading(true);
         const formData = new FormData();
         formData.set("file", resumeFile);
         formData.set("jobId", jobId);
@@ -40,9 +118,11 @@ export default function ApplicationForm({ jobId }: Props) {
 
         const uploadData = await uploadRes.json();
         if (!uploadRes.ok) {
+          setUploadError(uploadData.error || "Failed to upload resume");
           throw new Error(uploadData.error || "Failed to upload resume");
         }
         resumeUrl = uploadData.resume_url;
+        setUploading(false);
       }
 
       const res = await fetch("/api/applications", {
@@ -52,16 +132,17 @@ export default function ApplicationForm({ jobId }: Props) {
           job_id: jobId,
           name: form.name,
           email: form.email,
-          phone: form.phone || null,
-          skills: form.skills || null,
+          phone: phone || null,
+          skills: skills.length > 0 ? skills : null,
           years_experience: form.years_experience
             ? Number(form.years_experience)
             : null,
-          expected_salary: form.expected_salary
-            ? Number(form.expected_salary)
-            : null,
+          expected_salary:
+            typeof expectedSalary === "number" ? expectedSalary : null,
           education: form.education || null,
-          resume_url: resumeUrl
+          resume_url: resumeUrl,
+          source: form.source || null,
+          gender: form.gender || null
         })
       });
 
@@ -75,6 +156,7 @@ export default function ApplicationForm({ jobId }: Props) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setLoading(false);
+      setUploading(false);
     }
   }
 
@@ -129,23 +211,67 @@ export default function ApplicationForm({ jobId }: Props) {
 
         <label className="block space-y-1 text-sm text-slate-700">
           <span>Phone</span>
-          <input
-            type="tel"
-            value={form.phone}
-            onChange={(e) => setForm({ ...form, phone: e.target.value })}
-            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2"
+          <PhoneInput
+            country="IN"
+            international
+            value={phone}
+            onChange={(value) => {
+              setPhone(value ?? undefined);
+              setPhoneError(
+                value && !isValidPhoneNumber(value)
+                  ? "Please enter a valid phone number"
+                  : null
+              );
+            }}
+            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+            placeholder="Enter phone number"
           />
+          {phoneError && (
+            <p className="text-xs text-red-600">{phoneError}</p>
+          )}
         </label>
 
         <label className="block space-y-1 text-sm text-slate-700">
           <span>Skills</span>
-          <input
-            type="text"
-            value={form.skills}
-            onChange={(e) => setForm({ ...form, skills: e.target.value })}
-            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2"
-            placeholder="e.g. React, TypeScript, Node.js"
-          />
+          <div className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2">
+            <div className="flex flex-wrap gap-2">
+              {skills.map((skill) => (
+                <span
+                  key={skill}
+                  className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-800"
+                >
+                  {skill}
+                  <button
+                    type="button"
+                    className="text-slate-500 hover:text-slate-700"
+                    onClick={() => removeSkill(skill)}
+                    aria-label={`Remove ${skill}`}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+              <input
+                type="text"
+                value={skillInput}
+                onChange={(e) => setSkillInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === ",") {
+                    e.preventDefault();
+                    addSkill(skillInput);
+                  } else if (
+                    e.key === "Backspace" &&
+                    !skillInput &&
+                    skills.length > 0
+                  ) {
+                    removeSkill(skills[skills.length - 1]);
+                  }
+                }}
+                className="flex-1 min-w-[120px] border-0 bg-transparent text-sm outline-none"
+                placeholder="Type a skill and press Enter"
+              />
+            </div>
+          </div>
         </label>
 
         <label className="block space-y-1 text-sm text-slate-700">
@@ -163,15 +289,38 @@ export default function ApplicationForm({ jobId }: Props) {
 
         <label className="block space-y-1 text-sm text-slate-700">
           <span>Expected Salary</span>
-          <input
-            type="number"
-            min={0}
-            value={form.expected_salary}
-            onChange={(e) =>
-              setForm({ ...form, expected_salary: e.target.value })
-            }
-            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2"
-          />
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="relative w-full sm:w-32">
+              <select
+                className="w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 py-2 pr-8 text-sm"
+                value={currency}
+                onChange={(e) =>
+                  setCurrency(e.target.value as Currency)
+                }
+              >
+                <option value="INR">INR (₹)</option>
+                <option value="USD">USD ($)</option>
+                <option value="EUR">EUR (€)</option>
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            </div>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={expectedSalaryInput}
+              onChange={(e) => {
+                const { display, numeric } = formatCurrencyInput(
+                  e.target.value,
+                  currency,
+                  currencySymbol
+                );
+                setExpectedSalaryInput(display);
+                setExpectedSalary(numeric);
+              }}
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+              placeholder={`${currencySymbol}1,00,000`}
+            />
+          </div>
         </label>
 
         <label className="block space-y-1 text-sm text-slate-700">
@@ -186,6 +335,40 @@ export default function ApplicationForm({ jobId }: Props) {
         </label>
 
         <label className="block space-y-1 text-sm text-slate-700">
+          <span>How did you hear about us?</span>
+          <select
+            name="source"
+            value={form.source}
+            onChange={(e) => setForm({ ...form, source: e.target.value })}
+            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2"
+          >
+            <option value="">Select source</option>
+            <option value="LinkedIn">LinkedIn</option>
+            <option value="Job Board">Job Board</option>
+            <option value="Referral">Referral</option>
+            <option value="Company Website">Company Website</option>
+            <option value="Recruitment Agency">Recruitment Agency</option>
+            <option value="Other">Other</option>
+          </select>
+        </label>
+
+        <label className="block space-y-1 text-sm text-slate-700">
+          <span>Gender</span>
+          <select
+            name="gender"
+            value={form.gender}
+            onChange={(e) => setForm({ ...form, gender: e.target.value })}
+            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2"
+          >
+            <option value="">Select</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+            <option value="Other">Other</option>
+            <option value="Prefer not to say">Prefer not to say</option>
+          </select>
+        </label>
+
+        <label className="block space-y-1 text-sm text-slate-700">
           <span>Upload Resume (PDF)</span>
           <input
             type="file"
@@ -195,14 +378,25 @@ export default function ApplicationForm({ jobId }: Props) {
           />
         </label>
 
+        {uploading && (
+          <p className="text-xs text-slate-500">Uploading resume...</p>
+        )}
+        {uploadError && (
+          <p className="text-xs text-red-600">{uploadError}</p>
+        )}
+
         <div className="pt-2">
           <Button
             type="submit"
             variant="primary"
-            disabled={loading}
+            disabled={loading || uploading}
             className="w-full sm:w-auto"
           >
-            {loading ? "Submitting..." : "Submit Application"}
+            {loading
+              ? uploading
+                ? "Uploading resume..."
+                : "Submitting..."
+              : "Submit Application"}
           </Button>
         </div>
       </form>

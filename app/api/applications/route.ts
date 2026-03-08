@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import PDFParser from "pdf2json";
 
 export const runtime = "nodejs";
 
 export async function GET() {
   const { data, error } = await supabase
     .from("applications")
-    .select("id, name, status, skills, extracted_skills, years_experience, job:jobs(title)");
+    .select("id, name, status, skills, years_experience, job:jobs(title)");
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -15,115 +16,46 @@ export async function GET() {
   return NextResponse.json(data);
 }
 
-type ExtractedResume = {
-  skills?: string[];
-  years_experience?: number;
-  education?: string;
-  summary?: string;
-};
+async function extractPdfText(buffer: Buffer): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const pdfParser = new PDFParser(null, 1);
 
-async function parseResumeAndEnrich(
-  applicationId: string,
-  resumeUrl: string,
-  formYearsExperience: number | null,
-  formEducation: string | null
-) {
-  let resumeText = "";
+    pdfParser.on("pdfParser_dataError", (errData: unknown) => {
+      reject((errData as { parserError?: Error }).parserError ?? errData);
+    });
 
+    pdfParser.on("pdfParser_dataReady", () => {
+      const text = pdfParser.getRawTextContent();
+      resolve(text ?? "");
+    });
+
+    pdfParser.parseBuffer(buffer);
+  });
+}
+
+async function parseResumeText(applicationId: string, resumeUrl: string) {
   try {
-    const res = await fetch(resumeUrl);
-    if (!res.ok) throw new Error("Failed to fetch resume");
-    const buffer = await res.arrayBuffer();
-    const uint8Array = new Uint8Array(buffer);
-
-    const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
-    const pdf = await pdfjs.getDocument({ data: uint8Array }).promise;
-
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const content = await page.getTextContent();
-      const pageText = (content.items as any[])
-        .map((item: any) => item.str)
-        .join(" ");
-      resumeText += pageText + " ";
+    const response = await fetch(resumeUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch resume: ${response.status}`);
     }
 
-    resumeText = resumeText.trim();
-    console.log("Extracted resume length:", resumeText.length);
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
 
-    if (!resumeText) {
-      throw new Error("Failed to extract text from resume");
+    const extractedText = (await extractPdfText(buffer)).trim();
+
+    if (!extractedText) {
+      throw new Error("Parsed resume text is empty");
     }
+
+    await supabase
+      .from("applications")
+      .update({ resume_text: extractedText })
+      .eq("id", applicationId);
   } catch (err) {
     console.error("Resume PDF parse error:", err);
-    return;
   }
-
-  if (!resumeText) return;
-
-  let aiData: ExtractedResume = {};
-
-  try {
-    const aiResponse = await fetch(
-      "https://openrouter.ai/api/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY ?? ""}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": "https://fathom-human-capital-frontend.vercel.app",
-          "X-Title": "Fathom Human Capital"
-        },
-        body: JSON.stringify({
-          model: "mistralai/mistral-7b-instruct:free",
-          messages: [
-            {
-              role: "user",
-              content: `Extract structured candidate information from this resume.
-
-Return JSON with the following fields:
-skills (array of strings)
-years_experience (number)
-education (string)
-summary (short paragraph)
-
-Resume text:
-${resumeText.slice(0, 12000)}
-
-The AI must return ONLY valid JSON.`
-            }
-          ],
-          temperature: 0.3,
-          max_tokens: 600
-        })
-      }
-    );
-
-    const raw = await aiResponse.json();
-    const content =
-      raw?.choices?.[0]?.message?.content?.trim?.() ?? "";
-    const jsonStr = content.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
-    aiData = JSON.parse(jsonStr) as ExtractedResume;
-  } catch (err) {
-    console.error("OpenRouter resume extraction error:", err);
-  }
-
-  const updatePayload: Record<string, unknown> = {
-    resume_text: resumeText,
-    extracted_skills: Array.isArray(aiData.skills) ? aiData.skills : null,
-    resume_summary: aiData.summary ?? null
-  };
-  if (formYearsExperience == null && aiData.years_experience != null) {
-    updatePayload.years_experience = aiData.years_experience;
-  }
-  if ((formEducation == null || formEducation === "") && aiData.education) {
-    updatePayload.education = aiData.education;
-  }
-
-  await supabase
-    .from("applications")
-    .update(updatePayload)
-    .eq("id", applicationId);
 }
 
 export async function POST(req: Request) {
@@ -138,7 +70,9 @@ export async function POST(req: Request) {
       years_experience,
       expected_salary,
       education,
-      resume_url
+      resume_url,
+      source,
+      gender
     } = body;
 
     if (!job_id || !name) {
@@ -167,6 +101,8 @@ export async function POST(req: Request) {
         expected_salary: expected_salary ?? null,
         education: education ?? null,
         resume_url: resume_url ?? null,
+        source: source ?? null,
+        gender: gender ?? null,
         status: "applied",
         applied_at: new Date().toISOString()
       })
@@ -179,12 +115,7 @@ export async function POST(req: Request) {
 
     const applicationId = data?.id;
     if (applicationId && resume_url) {
-      await parseResumeAndEnrich(
-        applicationId,
-        resume_url,
-        years_experience ?? null,
-        education ?? null
-      );
+      await parseResumeText(applicationId, resume_url);
     }
 
     return NextResponse.json({ application: data });

@@ -16,6 +16,7 @@ import {
   verticalListSortingStrategy
 } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
+import { Trash2 } from "lucide-react";
 
 type Application = {
   id: string;
@@ -65,11 +66,13 @@ async function refreshApplications(): Promise<Application[]> {
 function SortableCandidateCard({
   app,
   aiScore,
-  disabled
+  disabled,
+  onRemove
 }: {
   app: Application;
   aiScore?: number;
   disabled: boolean;
+  onRemove: (id: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({
@@ -105,7 +108,19 @@ function SortableCandidateCard({
         </div>
 
         <div className="flex flex-col items-end gap-2">
-          <button
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove(app.id);
+              }}
+              className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
+              aria-label="Remove candidate"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+            <button
             type="button"
             className="cursor-grab rounded bg-slate-200 px-2 py-1 text-xs text-slate-700 hover:bg-slate-300 disabled:opacity-50"
             disabled={disabled}
@@ -115,6 +130,7 @@ function SortableCandidateCard({
           >
             Drag
           </button>
+          </div>
         </div>
       </div>
     </div>
@@ -192,6 +208,23 @@ export default function PredictivePage() {
       setError(err instanceof Error ? err.message : "Failed to update status");
     } finally {
       setUpdatingId(null);
+    }
+  }
+
+  async function removeCandidate(applicationId: string) {
+    if (!confirm("Remove this candidate from the pipeline?")) return;
+    setError(null);
+    try {
+      const res = await fetch(`/api/applications/${applicationId}`, {
+        method: "DELETE"
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to remove candidate");
+      }
+      loadApplications();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to remove candidate");
     }
   }
 
@@ -300,13 +333,23 @@ export default function PredictivePage() {
                   <td className="p-3">{getJobTitle(app.job)}</td>
                   <td className="p-3 capitalize">{app.status}</td>
                   <td className="p-3 text-right">
-                    <button
-                      onClick={() => analyze(app.id)}
-                      className="px-3 py-1 bg-black text-white rounded text-xs"
-                      disabled={loadingId === app.id}
-                    >
-                      {loadingId === app.id ? "Analyzing..." : "Analyze"}
-                    </button>
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => analyze(app.id)}
+                        className="px-3 py-1 bg-black text-white rounded text-xs"
+                        disabled={loadingId === app.id}
+                      >
+                        {loadingId === app.id ? "Analyzing..." : "Analyze"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeCandidate(app.id)}
+                        className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                        aria-label="Remove candidate"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
 
@@ -389,6 +432,16 @@ export default function PredictivePage() {
                     app={app}
                     aiScore={results[app.id]?.matchScore}
                     disabled={updatingId === app.id}
+                    onRemove={(id) => {
+                      if (confirm("Remove this candidate from the pipeline?")) {
+                        fetch(`/api/applications/${id}`, { method: "DELETE" })
+                          .then((res) => {
+                            if (res.ok) loadApplications();
+                            else setError("Failed to remove candidate");
+                          })
+                          .catch(() => setError("Failed to remove candidate"));
+                      }
+                    }}
                   />
                 ))}
               </SortableContext>

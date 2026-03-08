@@ -1,4 +1,5 @@
 import PanelCard from "@/components/PanelCard";
+import ExportAnalyticsButton from "./ExportAnalyticsButton";
 import { BarChart3, TrendingUp } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
@@ -13,21 +14,29 @@ export default async function AnalyticsPage() {
 
   const totalApplications = applicationList.length;
 
-  const interviews = applicationList.filter(
-    (app: any) => app.status === "interview"
+  const hired = applicationList.filter(
+    (app: any) => app.status === "hired"
   );
-  const totalHires = interviews.length;
+  const totalHires = hired.length;
+
+  const totalRecruitingCost = (jobList as any[]).reduce(
+    (sum: number, job: any) => sum + (Number(job.recruiting_cost) || 0),
+    0
+  );
+  const costPerHire =
+    totalHires > 0 ? Math.round(totalRecruitingCost / totalHires) : 0;
 
   const averageTimeToHire =
     totalHires > 0
       ? Math.round(
-          interviews.reduce((acc: number, app: any) => {
-            const job = jobList.find((j: any) => j.id === app.job_id);
-            if (!job) return acc;
-            const jobDate = new Date(job.created_at).getTime();
-            const appliedDate = new Date(app.applied_at).getTime();
-            const diffDays =
-              (appliedDate - jobDate) / (1000 * 60 * 60 * 24);
+          hired.reduce((acc: number, app: any) => {
+            const appliedAt = app.applied_at
+              ? new Date(app.applied_at).getTime()
+              : 0;
+            const hiredAt = app.hired_at
+              ? new Date(app.hired_at).getTime()
+              : Date.now();
+            const diffDays = (hiredAt - appliedAt) / (1000 * 60 * 60 * 24);
             return acc + diffDays;
           }, 0) / totalHires
         )
@@ -37,6 +46,17 @@ export default async function AnalyticsPage() {
     totalApplications > 0
       ? Math.round((totalHires / totalApplications) * 100)
       : 0;
+
+  const hiredWithScore = hired.filter(
+    (app: any) => app.ai_score != null && !isNaN(Number(app.ai_score))
+  );
+  const qualityScore =
+    hiredWithScore.length > 0
+      ? Math.round(
+          hiredWithScore.reduce((acc: number, app: any) => acc + Number(app.ai_score), 0) /
+            hiredWithScore.length
+        )
+      : null;
 
   const sourceApplicationCounts = applicationList.reduce(
     (acc: Record<string, number>, app: any) => {
@@ -48,7 +68,7 @@ export default async function AnalyticsPage() {
     {} as Record<string, number>
   );
 
-  const sourceHireCounts = interviews.reduce(
+  const sourceHireCounts = hired.reduce(
     (acc: Record<string, number>, app: any) => {
       const source = app.source as string | null;
       if (!source) return acc;
@@ -59,7 +79,11 @@ export default async function AnalyticsPage() {
   );
 
   return (
-    <div className="grid gap-6 md:grid-cols-2">
+    <div className="space-y-6">
+      <div className="flex justify-end">
+        <ExportAnalyticsButton />
+      </div>
+      <div className="grid gap-6 md:grid-cols-2">
       <PanelCard
         title="Key Recruitment Metrics"
         icon={<BarChart3 className="h-4 w-4" />}
@@ -75,7 +99,9 @@ export default async function AnalyticsPage() {
             <span className="text-sm text-slate-600">
               Quality of Hire Score
             </span>
-            <span className="text-sm font-semibold text-slate-900">0/100</span>
+            <span className="text-sm font-semibold text-slate-900">
+              {qualityScore != null ? `${qualityScore}/100` : "—"}
+            </span>
           </div>
           <div className="flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
             <span className="text-sm text-slate-600">
@@ -83,6 +109,12 @@ export default async function AnalyticsPage() {
             </span>
             <span className="text-sm font-semibold text-slate-900">
               {averageTimeToHire} days
+            </span>
+          </div>
+          <div className="flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
+            <span className="text-sm text-slate-600">Cost per Hire</span>
+            <span className="text-sm font-semibold text-slate-900">
+              ₹{costPerHire}
             </span>
           </div>
         </div>
@@ -141,15 +173,27 @@ export default async function AnalyticsPage() {
             <span className="text-sm text-slate-600">Recruitment Agencies</span>
             <div className="text-right">
               <p className="text-sm font-medium text-slate-900">
-                {sourceHireCounts["Agency"] ?? 0} hires
+                {sourceHireCounts["Recruitment Agency"] ?? 0} hires
               </p>
               <p className="text-xs text-slate-500">
-                {sourceApplicationCounts["Agency"] ?? 0} applications
+                {sourceApplicationCounts["Recruitment Agency"] ?? 0} applications
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
+            <span className="text-sm text-slate-600">Other</span>
+            <div className="text-right">
+              <p className="text-sm font-medium text-slate-900">
+                {sourceHireCounts["Other"] ?? 0} hires
+              </p>
+              <p className="text-xs text-slate-500">
+                {sourceApplicationCounts["Other"] ?? 0} applications
               </p>
             </div>
           </div>
         </div>
       </PanelCard>
+    </div>
     </div>
   );
 }

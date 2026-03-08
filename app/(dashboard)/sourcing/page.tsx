@@ -23,8 +23,8 @@ export default async function SourcingPage() {
     { label: "LinkedIn", key: "LinkedIn" },
     { label: "Job Board", key: "Job Board" },
     { label: "Referral", key: "Referral" },
-    { label: "Company", key: "Company Website" },
-    { label: "Agency", key: "Agency" },
+    { label: "Company Website", key: "Company Website" },
+    { label: "Recruitment Agency", key: "Recruitment Agency" },
     { label: "Other", key: "Other" }
   ];
 
