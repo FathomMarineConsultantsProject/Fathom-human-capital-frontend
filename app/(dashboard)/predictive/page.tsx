@@ -16,7 +16,7 @@ import {
   verticalListSortingStrategy
 } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
-import { Trash2 } from "lucide-react";
+import { Trash2, CheckSquare, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 type Application = {
@@ -181,6 +181,11 @@ export default function PredictivePage() {
   const [selectedCandidate, setSelectedCandidate] = useState<Application | null>(
     null
   );
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedApplicationIds, setSelectedApplicationIds] = useState<string[]>(
+    []
+  );
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -247,6 +252,12 @@ export default function PredictivePage() {
     };
   }, []);
 
+  useEffect(() => {
+    setSelectedApplicationIds((prev) =>
+      prev.filter((id) => applications.some((app) => app.id === id))
+    );
+  }, [applications]);
+
   async function updateStatus(applicationId: string, newStatus: string) {
     setUpdatingId(applicationId);
     setError(null);
@@ -283,6 +294,64 @@ export default function PredictivePage() {
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to remove candidate");
     }
+  }
+
+  function toggleSelectionMode() {
+    setSelectionMode((prev) => {
+      if (prev) {
+        setSelectedApplicationIds([]);
+      }
+      return !prev;
+    });
+  }
+
+  function toggleCandidateSelection(applicationId: string) {
+    setSelectedApplicationIds((prev) =>
+      prev.includes(applicationId)
+        ? prev.filter((id) => id !== applicationId)
+        : [...prev, applicationId]
+    );
+  }
+
+  function toggleSelectAllCandidates() {
+    setSelectedApplicationIds((prev) =>
+      prev.length === applications.length ? [] : applications.map((app) => app.id)
+    );
+  }
+
+  async function removeSelectedCandidates() {
+    if (selectedApplicationIds.length === 0 || bulkDeleting) return;
+    const confirmed = confirm(
+      `Remove ${selectedApplicationIds.length} selected candidate(s) from the pipeline?`
+    );
+    if (!confirmed) return;
+
+    setError(null);
+    setBulkDeleting(true);
+
+    const failed: string[] = [];
+    for (const applicationId of selectedApplicationIds) {
+      try {
+        const res = await fetch(`/api/applications/${applicationId}`, {
+          method: "DELETE"
+        });
+        if (!res.ok) {
+          failed.push(applicationId);
+        }
+      } catch {
+        failed.push(applicationId);
+      }
+    }
+
+    setBulkDeleting(false);
+    setSelectionMode(false);
+    setSelectedApplicationIds([]);
+
+    if (failed.length > 0) {
+      setError("Some selected candidates could not be removed. Please retry.");
+    }
+
+    await loadApplications();
   }
 
   async function analyze(candidate: Application) {
@@ -390,9 +459,58 @@ export default function PredictivePage() {
       {error && <div className="text-red-500 text-sm">{error}</div>}
 
       <div className="bg-white rounded-lg shadow border">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-slate-50 px-3 py-2">
+          <span className="text-xs text-slate-600">
+            {selectionMode
+              ? `${selectedApplicationIds.length} selected`
+              : "Manage candidates"}
+          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            {!selectionMode ? (
+              <button
+                type="button"
+                onClick={toggleSelectionMode}
+                className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
+              >
+                <CheckSquare className="h-3.5 w-3.5" />
+                Select
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={toggleSelectAllCandidates}
+                  className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                >
+                  {selectedApplicationIds.length === applications.length
+                    ? "Clear all"
+                    : "Select all"}
+                </button>
+                <button
+                  type="button"
+                  onClick={removeSelectedCandidates}
+                  disabled={selectedApplicationIds.length === 0 || bulkDeleting}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  {bulkDeleting ? "Removing..." : "Delete selected"}
+                </button>
+                <button
+                  type="button"
+                  onClick={toggleSelectionMode}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  Cancel
+                </button>
+              </>
+            )}
+          </div>
+        </div>
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b">
             <tr>
+              {selectionMode && <th className="text-left p-3">Select</th>}
               <th className="text-left p-3">Candidate</th>
               <th className="text-left p-3">Job</th>
               <th className="text-left p-3">Status</th>
@@ -403,6 +521,17 @@ export default function PredictivePage() {
             {applications.map((app) => (
               <Fragment key={app.id}>
                 <tr className="border-b">
+                  {selectionMode && (
+                    <td className="p-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedApplicationIds.includes(app.id)}
+                        onChange={() => toggleCandidateSelection(app.id)}
+                        className="h-4 w-4 rounded border-slate-300 text-slate-700 focus:ring-slate-400"
+                        aria-label={`Select ${app.name}`}
+                      />
+                    </td>
+                  )}
                   <td className="p-3">{app.name}</td>
                   <td className="p-3">{getJobTitle(app)}</td>
                   <td className="p-3 capitalize">{app.status}</td>
@@ -431,6 +560,7 @@ export default function PredictivePage() {
                         onClick={() => removeCandidate(app.id)}
                         className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
                         aria-label="Remove candidate"
+                        disabled={selectionMode}
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -439,7 +569,7 @@ export default function PredictivePage() {
                 </tr>
                 {activeAnalysisId === app.id && analysisResult && (
                   <tr className="bg-gray-50">
-                    <td colSpan={4} className="p-4 space-y-3">
+                    <td colSpan={selectionMode ? 5 : 4} className="p-4 space-y-3">
                       <div>
                         <span className="font-medium">Match Score:</span>{" "}
                         {analysisResult.matchScore}%

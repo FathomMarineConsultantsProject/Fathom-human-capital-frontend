@@ -1,5 +1,4 @@
 import PanelCard from "@/components/PanelCard";
-import ExportAnalyticsButton from "./ExportAnalyticsButton";
 import { BarChart3, TrendingUp } from "lucide-react";
 import { getAnalytics } from "@/lib/getAnalytics";
 
@@ -9,8 +8,12 @@ export const revalidate = 0;
 export default async function AnalyticsPage() {
   const analytics = await getAnalytics();
 
-  const conversionRate = analytics?.conversion_rate ?? 0;
-  const qualityScore = analytics?.quality_score;
+  const totalApplications = analytics?.total_applications ?? 0;
+  const totalHires = analytics?.total_hires ?? 0;
+  const conversionRate =
+    totalApplications > 0
+      ? Math.round((totalHires / totalApplications) * 100)
+      : 0;
   const averageTimeToHire = Math.round(Number(analytics?.avg_time_to_hire ?? 0));
   const costPerHire = analytics?.cost_per_hire ?? 0;
 
@@ -26,9 +29,6 @@ export default async function AnalyticsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end">
-        <ExportAnalyticsButton />
-      </div>
       <div className="grid gap-6 md:grid-cols-2">
         <PanelCard
           title="Key Recruitment Metrics"
@@ -46,7 +46,7 @@ export default async function AnalyticsPage() {
                 Quality of Hire Score
               </span>
               <span className="text-sm font-semibold text-slate-900">
-                {qualityScore != null ? `${qualityScore}/100` : "—"}
+                —
               </span>
             </div>
             <div className="flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-4 py-3">

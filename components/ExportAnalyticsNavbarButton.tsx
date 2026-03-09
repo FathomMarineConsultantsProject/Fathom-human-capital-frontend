@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import { Download } from "lucide-react";
+import { Button } from "./ui/Button";
 import { downloadAnalyticsReport } from "@/lib/exportAnalytics";
 
-export default function ExportAnalyticsButton() {
+export default function ExportAnalyticsNavbarButton() {
   const [loading, setLoading] = useState(false);
 
-  async function handleExport() {
+  async function handleExportAnalytics() {
     setLoading(true);
     try {
       await downloadAnalyticsReport();
@@ -19,14 +20,14 @@ export default function ExportAnalyticsButton() {
   }
 
   return (
-    <button
+    <Button
       type="button"
-      onClick={handleExport}
+      variant="secondary"
+      onClick={handleExportAnalytics}
       disabled={loading}
-      className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50"
     >
       <Download className="h-4 w-4" />
-      {loading ? "Exporting..." : "Export Analytics"}
-    </button>
+      <span>{loading ? "Exporting..." : "Export Analytics"}</span>
+    </Button>
   );
 }

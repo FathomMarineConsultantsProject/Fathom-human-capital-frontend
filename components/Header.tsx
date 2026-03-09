@@ -1,7 +1,8 @@
 import TabNavigation from "./TabNavigation";
 import { Button } from "./ui/Button";
-import { Linkedin, Download, Plus } from "lucide-react";
+import { Linkedin, Plus } from "lucide-react";
 import Link from "next/link";
+import ExportAnalyticsNavbarButton from "./ExportAnalyticsNavbarButton";
 
 export default function Header() {
   return (
@@ -23,10 +24,7 @@ export default function Header() {
                 <span>LinkedIn Integration</span>
               </Button>
             </Link>
-            <Button variant="secondary">
-              <Download className="h-4 w-4" />
-              <span>Export Analytics</span>
-            </Button>
+            <ExportAnalyticsNavbarButton />
             <Link href="/jobs/new">
               <Button variant="primary">
                 <Plus className="h-4 w-4" />

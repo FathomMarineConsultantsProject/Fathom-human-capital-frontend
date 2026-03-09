@@ -2,9 +2,17 @@
 
 import MetricCard from "@/components/MetricCard";
 import PanelCard from "@/components/PanelCard";
-import { Briefcase, Users, Clock, DollarSign, Trash2 } from "lucide-react";
+import {
+  Briefcase,
+  Users,
+  Clock,
+  DollarSign,
+  Trash2,
+  CheckSquare,
+  X
+} from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type Job = {
   id: string;
@@ -45,8 +53,17 @@ export default function OverviewContent({
   const router = useRouter();
   const [deleteJobId, setDeleteJobId] = useState<string | null>(null);
   const [deletingJobId, setDeletingJobId] = useState<string | null>(null);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedJobIds, setSelectedJobIds] = useState<string[]>([]);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [jobActionError, setJobActionError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSelectedJobIds((prev) => prev.filter((id) => jobs.some((job) => job.id === id)));
+  }, [jobs]);
 
   async function handleDeleteJob(jobId: string) {
+    setJobActionError(null);
     setDeletingJobId(jobId);
     try {
       const res = await fetch(`/api/jobs/${jobId}`, { method: "DELETE" });
@@ -61,6 +78,62 @@ export default function OverviewContent({
       setDeletingJobId(null);
       setDeleteJobId(null);
     }
+  }
+
+  function toggleSelectionMode() {
+    setSelectionMode((prev) => {
+      if (prev) {
+        setSelectedJobIds([]);
+      }
+      return !prev;
+    });
+  }
+
+  function toggleJobSelection(jobId: string) {
+    setSelectedJobIds((prev) =>
+      prev.includes(jobId)
+        ? prev.filter((id) => id !== jobId)
+        : [...prev, jobId]
+    );
+  }
+
+  function selectAllJobs() {
+    setSelectedJobIds((prev) =>
+      prev.length === jobs.length ? [] : jobs.map((job) => job.id)
+    );
+  }
+
+  async function handleBulkDeleteJobs() {
+    if (selectedJobIds.length === 0 || bulkDeleting) return;
+    const confirmDelete = confirm(
+      `Delete ${selectedJobIds.length} selected job posting(s)? Related applications will also be removed.`
+    );
+    if (!confirmDelete) return;
+
+    setJobActionError(null);
+    setBulkDeleting(true);
+
+    const failedIds: string[] = [];
+    for (const jobId of selectedJobIds) {
+      try {
+        const res = await fetch(`/api/jobs/${jobId}`, { method: "DELETE" });
+        if (!res.ok) {
+          failedIds.push(jobId);
+        }
+      } catch {
+        failedIds.push(jobId);
+      }
+    }
+
+    setBulkDeleting(false);
+    setSelectionMode(false);
+    setSelectedJobIds([]);
+
+    if (failedIds.length > 0) {
+      setJobActionError("Some selected jobs could not be deleted. Please retry.");
+    }
+
+    router.refresh();
   }
 
   return (
@@ -79,38 +152,106 @@ export default function OverviewContent({
           {jobs.length === 0 ? (
             <p className="text-sm text-slate-400">No job postings yet</p>
           ) : (
-            jobs.map((job) => (
-              <div
-                key={job.id}
-                className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-4"
-              >
-                <div>
-                  <p className="text-sm font-medium text-slate-900">
-                    {job.title}
-                  </p>
-                  <p className="text-xs text-slate-500">{job.department}</p>
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+                <div className="text-xs text-slate-600">
+                  {selectionMode
+                    ? `${selectedJobIds.length} selected`
+                    : "Manage recent job postings"}
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-700">
-                    {job.status}
-                  </span>
-                  {job.linkedin_posted === true && (
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-700">
-                      ✅ Published to LinkedIn
-                    </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  {!selectionMode ? (
+                    <button
+                      type="button"
+                      onClick={toggleSelectionMode}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                    >
+                      <CheckSquare className="h-3.5 w-3.5" />
+                      Select
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={selectAllJobs}
+                        className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                      >
+                        {selectedJobIds.length === jobs.length ? "Clear all" : "Select all"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleBulkDeleteJobs}
+                        disabled={selectedJobIds.length === 0 || bulkDeleting}
+                        className="inline-flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        {bulkDeleting ? "Deleting..." : "Delete selected"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={toggleSelectionMode}
+                        className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                        Cancel
+                      </button>
+                    </>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => setDeleteJobId(job.id)}
-                    className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
-                    aria-label="Delete job"
-                    disabled={deletingJobId === job.id}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
                 </div>
               </div>
-            ))
+
+              {jobActionError && (
+                <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                  {jobActionError}
+                </p>
+              )}
+
+              {jobs.map((job) => (
+                <div
+                  key={job.id}
+                  className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-4"
+                >
+                  <div className="flex items-center gap-3">
+                    {selectionMode && (
+                      <input
+                        type="checkbox"
+                        checked={selectedJobIds.includes(job.id)}
+                        onChange={() => toggleJobSelection(job.id)}
+                        className="h-4 w-4 rounded border-slate-300 text-slate-700 focus:ring-slate-400"
+                        aria-label={`Select ${job.title}`}
+                      />
+                    )}
+                    <div>
+                      <p className="text-sm font-medium text-slate-900">
+                        {job.title}
+                      </p>
+                      <p className="text-xs text-slate-500">{job.department}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-700">
+                      {job.status}
+                    </span>
+                    {job.linkedin_posted === true && (
+                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-700">
+                        ✅ Published to LinkedIn
+                      </span>
+                    )}
+                    {!selectionMode && (
+                      <button
+                        type="button"
+                        onClick={() => setDeleteJobId(job.id)}
+                        className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                        aria-label="Delete job"
+                        disabled={deletingJobId === job.id}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </PanelCard>
         <PanelCard
