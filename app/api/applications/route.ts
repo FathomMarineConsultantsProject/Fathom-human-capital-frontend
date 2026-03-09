@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 export async function GET() {
   const { data, error } = await supabase
     .from("applications")
-    .select("id, name, status, skills, years_experience, job:jobs(title)");
+    .select("*, job:jobs(title)");
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

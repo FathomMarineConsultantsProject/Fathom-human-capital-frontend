@@ -17,6 +17,7 @@ import {
 } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
 import { Trash2 } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 type Application = {
   id: string;
@@ -25,7 +26,8 @@ type Application = {
   skills?: string[] | null;
   extracted_skills?: string[] | null;
   years_experience?: number | null;
-  job: { title: string } | { title: string }[] | null;
+  job?: { title: string } | { title: string }[] | null;
+  jobs?: { title: string } | null;
 };
 
 type AIResult = {
@@ -51,16 +53,11 @@ function getSkillsDisplay(app: Application): string {
   return skills.slice(0, 5).join(", ") + (skills.length > 5 ? "…" : "");
 }
 
-function getJobTitle(job: Application["job"]): string {
+function getJobTitle(app: Application): string {
+  const job = app.jobs ?? app.job;
   if (!job) return "—";
   if (Array.isArray(job)) return job[0]?.title ?? "—";
   return job.title ?? "—";
-}
-
-async function refreshApplications(): Promise<Application[]> {
-  const res = await fetch("/api/applications");
-  if (!res.ok) throw new Error("Failed to load applications");
-  return res.json();
 }
 
 function SortableCandidateCard({
@@ -180,14 +177,63 @@ export default function PredictivePage() {
     })
   );
 
-  function loadApplications() {
-    refreshApplications()
-      .then(setApplications)
-      .catch(() => setError("Failed to load applications"));
+  async function loadApplications() {
+    try {
+      const { data, error } = await supabase
+        .from("applications")
+        .select(`
+          *,
+          jobs (
+            title
+          )
+        `)
+        .returns<Application[]>();
+
+      if (error) {
+        throw error;
+      }
+
+      setApplications(data ?? []);
+      setError(null);
+    } catch (_err) {
+      setError("Failed to load applications");
+    }
   }
 
   useEffect(() => {
     loadApplications();
+  }, []);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("predictive-applications-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "applications",
+        },
+        () => {
+          loadApplications();
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "jobs",
+        },
+        () => {
+          loadApplications();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   async function updateStatus(applicationId: string, newStatus: string) {
@@ -222,7 +268,7 @@ export default function PredictivePage() {
         const data = await res.json();
         throw new Error(data.error || "Failed to remove candidate");
       }
-      loadApplications();
+      await loadApplications();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to remove candidate");
     }
@@ -330,7 +376,7 @@ export default function PredictivePage() {
               <>
                 <tr key={app.id} className="border-b">
                   <td className="p-3">{app.name}</td>
-                  <td className="p-3">{getJobTitle(app.job)}</td>
+                  <td className="p-3">{getJobTitle(app)}</td>
                   <td className="p-3 capitalize">{app.status}</td>
                   <td className="p-3 text-right">
                     <div className="flex items-center justify-end gap-2">
@@ -433,14 +479,7 @@ export default function PredictivePage() {
                     aiScore={results[app.id]?.matchScore}
                     disabled={updatingId === app.id}
                     onRemove={(id) => {
-                      if (confirm("Remove this candidate from the pipeline?")) {
-                        fetch(`/api/applications/${id}`, { method: "DELETE" })
-                          .then((res) => {
-                            if (res.ok) loadApplications();
-                            else setError("Failed to remove candidate");
-                          })
-                          .catch(() => setError("Failed to remove candidate"));
-                      }
+                      void removeCandidate(id);
                     }}
                   />
                 ))}

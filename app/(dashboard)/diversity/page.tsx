@@ -1,33 +1,18 @@
 import PanelCard from "@/components/PanelCard";
 import { PieChart, Target } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { getAnalytics } from "@/lib/getAnalytics";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default async function DiversityPage() {
-  const { data: jobs } = await supabase.from("jobs").select("*");
-  const { data: applications } = await supabase
-    .from("applications")
-    .select("*");
-
-  const jobList = jobs ?? [];
-  const applicationList = applications ?? [];
-
-  const total = applicationList.length;
-
-  const genderCounts = applicationList.reduce(
-    (acc: Record<string, number>, app: any) => {
-      const gender = app.gender as string | null;
-      if (!gender) return acc;
-      acc[gender] = (acc[gender] || 0) + 1;
-      return acc;
-    },
-    {} as Record<string, number>
-  );
+  const analytics = await getAnalytics();
 
   const genderLabels = [
-    "Male",
-    "Female",
-    "Other",
-    "Prefer not to say"
+    { label: "Male", count: analytics?.male_count ?? 0 },
+    { label: "Female", count: analytics?.female_count ?? 0 },
+    { label: "Other", count: analytics?.other_count ?? 0 },
+    { label: "Prefer not to say", count: analytics?.prefer_not_to_say_count ?? 0 },
   ];
 
   return (
@@ -37,14 +22,14 @@ export default async function DiversityPage() {
         icon={<PieChart className="h-4 w-4" />}
       >
         <div className="space-y-3">
-          {genderLabels.map((label) => (
+          {genderLabels.map(({ label, count }) => (
             <div
               key={label}
               className="flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-4 py-3"
             >
               <span className="text-sm text-slate-600">{label}</span>
               <span className="text-sm font-semibold text-slate-900">
-                {genderCounts[label] ?? 0}
+                {count}
               </span>
             </div>
           ))}

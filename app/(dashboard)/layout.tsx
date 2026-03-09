@@ -1,4 +1,5 @@
 import Header from "@/components/Header";
+import DashboardRealtime from "./DashboardRealtime";
 
 export default function DashboardLayout({
   children,
@@ -9,7 +10,9 @@ export default function DashboardLayout({
     <div className="min-h-screen bg-slate-50">
       <Header />
       <main className="p-6">
-        <div className="mx-auto max-w-7xl">{children}</div>
+        <div className="mx-auto max-w-7xl">
+          <DashboardRealtime>{children}</DashboardRealtime>
+        </div>
       </main>
     </div>
   );

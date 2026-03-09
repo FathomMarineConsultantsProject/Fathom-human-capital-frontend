@@ -61,10 +61,10 @@ export async function PATCH(
       );
     }
 
-    const updatePayload: Record<string, unknown> = { status };
-    if (status === "hired") {
-      updatePayload.hired_at = new Date().toISOString();
-    }
+    const updatePayload: Record<string, unknown> = {
+      status,
+      hired_at: status === "hired" ? new Date().toISOString() : null,
+    };
 
     const { data, error } = await supabase
       .from("applications")

@@ -51,6 +51,9 @@ export default function NewJobPage() {
   const [salaryCurrency, setSalaryCurrency] = useState<Currency>("INR");
   const [salaryBudget, setSalaryBudget] = useState<number | null>(null);
   const [salaryBudgetInput, setSalaryBudgetInput] = useState("");
+  const [salaryType, setSalaryType] = useState<"range" | "not_specified">(
+    "range"
+  );
 
   const salaryCurrencySymbol = useMemo(
     () =>
@@ -124,7 +127,7 @@ export default function NewJobPage() {
       setError("Please add at least one skill");
       return;
     }
-    if (salaryBudget == null) {
+    if (salaryType === "range" && salaryBudget == null) {
       setError("Please enter a salary budget.");
       return;
     }
@@ -141,7 +144,8 @@ export default function NewJobPage() {
           title: form.title,
           department: form.department,
           required_skills: requiredSkills,
-          salary_budget: salaryBudget,
+          salary_budget:
+            salaryType === "not_specified" ? null : salaryBudget,
           seniority: form.seniority,
           status: "active"
         })
@@ -314,38 +318,56 @@ export default function NewJobPage() {
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <label className="space-y-1 text-sm text-slate-700">
             <span>Salary Budget</span>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <div className="relative w-full sm:w-32">
-                <select
-                  className="w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 py-2 pr-8 text-sm"
-                  value={salaryCurrency}
-                  onChange={(e) =>
-                    setSalaryCurrency(e.target.value as Currency)
-                  }
-                >
-                  <option value="INR">INR (₹)</option>
-                  <option value="USD">USD ($)</option>
-                  <option value="EUR">EUR (€)</option>
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-              </div>
-              <input
-                type="text"
-                inputMode="numeric"
-                value={salaryBudgetInput}
+            <div className="flex items-center gap-3">
+              <select
+                className="w-[180px] rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
+                value={salaryType}
                 onChange={(e) => {
-                  const { display, numeric } = formatCurrencyInput(
-                    e.target.value,
-                    salaryCurrency,
-                    salaryCurrencySymbol
-                  );
-                  setSalaryBudgetInput(display);
-                  setSalaryBudget(numeric);
+                  const value = e.target.value as "range" | "not_specified";
+                  setSalaryType(value);
+                  if (value === "not_specified") {
+                    setSalaryBudget(null);
+                    setSalaryBudgetInput("");
+                  }
                 }}
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
-                placeholder={`${salaryCurrencySymbol}1,00,000`}
-                required
-              />
+              >
+                <option value="range">Salary Range</option>
+                <option value="not_specified">Prefer not to say</option>
+              </select>
+              {salaryType === "range" && (
+                <>
+                  <div className="relative w-[120px]">
+                    <select
+                      className="w-full appearance-none rounded-md border border-slate-300 bg-white px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
+                      value={salaryCurrency}
+                      onChange={(e) =>
+                        setSalaryCurrency(e.target.value as Currency)
+                      }
+                    >
+                      <option value="INR">INR (₹)</option>
+                      <option value="USD">USD ($)</option>
+                      <option value="EUR">EUR (€)</option>
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                  </div>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={salaryBudgetInput}
+                    onChange={(e) => {
+                      const { display, numeric } = formatCurrencyInput(
+                        e.target.value,
+                        salaryCurrency,
+                        salaryCurrencySymbol
+                      );
+                      setSalaryBudgetInput(display);
+                      setSalaryBudget(numeric);
+                    }}
+                    className="w-[200px] rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
+                    placeholder={`${salaryCurrencySymbol}1,00,000`}
+                  />
+                </>
+              )}
             </div>
           </label>
           <label className="space-y-1 text-sm text-slate-700">
@@ -361,14 +383,14 @@ export default function NewJobPage() {
 
         <button
           type="submit"
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+          className="mt-4 rounded-md bg-slate-800 px-4 py-2 text-white hover:bg-slate-900 disabled:opacity-60"
           disabled={
             loading ||
             !form.title.trim() ||
             !form.department.trim() ||
             !form.seniority.trim() ||
             !requiredSkills.length ||
-            salaryBudget == null
+            (salaryType === "range" && salaryBudget == null)
           }
         >
           {loading ? "Publishing..." : "Publish"}

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { getAnalytics } from "@/lib/getAnalytics";
 
 function escapeCsvCell(value: unknown): string {
   if (value == null) return "";
@@ -16,6 +17,8 @@ function toCsvRow(values: unknown[]): string {
 
 export async function GET() {
   try {
+    const analytics = await getAnalytics();
+
     const { data: jobs, error: jobsError } = await supabase
       .from("jobs")
       .select("*");
@@ -68,23 +71,16 @@ export async function GET() {
     }
     lines.push("");
 
-    const totalHires = applicationList.filter(
-      (a: { status?: string }) => a.status === "hired"
-    ).length;
-    const totalRecruitingCost = (jobList as { recruiting_cost?: number }[]).reduce(
-      (s, j) => s + (Number(j.recruiting_cost) || 0),
-      0
-    );
-    const costPerHire = totalHires > 0 ? Math.round(totalRecruitingCost / totalHires) : 0;
-    const conversionRate =
-      applicationList.length > 0
-        ? Math.round((totalHires / applicationList.length) * 100)
-        : 0;
+    const totalJobs = jobList.length;
+    const totalApplications = analytics?.total_applications ?? 0;
+    const totalHires = analytics?.total_hires ?? 0;
+    const conversionRate = analytics?.conversion_rate ?? 0;
+    const costPerHire = analytics?.cost_per_hire ?? 0;
 
     lines.push("METRICS");
     lines.push(toCsvRow(["Metric", "Value"]));
-    lines.push(toCsvRow(["Total Jobs", jobList.length]));
-    lines.push(toCsvRow(["Total Applications", applicationList.length]));
+    lines.push(toCsvRow(["Total Jobs", totalJobs]));
+    lines.push(toCsvRow(["Total Applications", totalApplications]));
     lines.push(toCsvRow(["Total Hires", totalHires]));
     lines.push(toCsvRow(["Conversion Rate %", conversionRate]));
     lines.push(toCsvRow(["Cost per Hire", costPerHire]));
