@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
-import { Copy, ExternalLink, Check, ChevronDown } from "lucide-react";
+import { Copy, ExternalLink, Check } from "lucide-react";
 
 const APPLICATION_BASE_URL =
   "https://fathom-human-capital-frontend.vercel.app";
@@ -11,29 +11,9 @@ const APPLICATION_BASE_URL =
 type JobFormState = {
   title: string;
   department: string;
+  description: string;
   seniority: string;
 };
-
-type Currency = "INR" | "USD" | "EUR";
-
-function formatCurrencyInput(
-  raw: string,
-  currency: Currency,
-  symbol: string
-) {
-  const digits = raw.replace(/[^\d]/g, "");
-  if (!digits) {
-    return { display: "", numeric: null as number | null };
-  }
-  const numeric = Number(digits);
-  const formatter = new Intl.NumberFormat(
-    currency === "INR" ? "en-IN" : "en-US"
-  );
-  return {
-    display: `${symbol}${formatter.format(numeric)}`,
-    numeric
-  };
-}
 
 export default function NewJobPage() {
   const router = useRouter();
@@ -42,28 +22,13 @@ export default function NewJobPage() {
   const [form, setForm] = useState<JobFormState>({
     title: "",
     department: "",
+    description: "",
     seniority: ""
   });
   const [createdJobId, setCreatedJobId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [requiredSkills, setRequiredSkills] = useState<string[]>([]);
   const [requiredSkillInput, setRequiredSkillInput] = useState("");
-  const [salaryCurrency, setSalaryCurrency] = useState<Currency>("INR");
-  const [salaryBudget, setSalaryBudget] = useState<number | null>(null);
-  const [salaryBudgetInput, setSalaryBudgetInput] = useState("");
-  const [salaryType, setSalaryType] = useState<"range" | "not_specified">(
-    "range"
-  );
-
-  const salaryCurrencySymbol = useMemo(
-    () =>
-      ({
-        INR: "₹",
-        USD: "$",
-        EUR: "€"
-      }[salaryCurrency]),
-    [salaryCurrency]
-  );
 
   function addRequiredSkill(raw: string) {
     const value = raw.trim();
@@ -78,19 +43,6 @@ export default function NewJobPage() {
   function removeRequiredSkill(skill: string) {
     setRequiredSkills((prev) => prev.filter((s) => s !== skill));
   }
-
-  useEffect(() => {
-    if (salaryBudget != null) {
-      const { display } = formatCurrencyInput(
-        salaryBudget.toString(),
-        salaryCurrency,
-        salaryCurrencySymbol
-      );
-      setSalaryBudgetInput(display);
-    } else {
-      setSalaryBudgetInput("");
-    }
-  }, [salaryBudget, salaryCurrency, salaryCurrencySymbol]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -127,10 +79,6 @@ export default function NewJobPage() {
       setError("Please add at least one skill");
       return;
     }
-    if (salaryType === "range" && salaryBudget == null) {
-      setError("Please enter a salary budget.");
-      return;
-    }
 
     setLoading(true);
     setError(null);
@@ -143,9 +91,8 @@ export default function NewJobPage() {
         body: JSON.stringify({
           title: form.title,
           department: form.department,
+          description: form.description.trim(),
           required_skills: requiredSkills,
-          salary_budget:
-            salaryType === "not_specified" ? null : salaryBudget,
           seniority: form.seniority,
           status: "active"
         })
@@ -244,10 +191,13 @@ export default function NewJobPage() {
         onSubmit={onSubmit}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
+            // Prevent accidental form submit while typing in inputs,
+            // but allow newlines in the Job Description textarea.
+            if (e.target instanceof HTMLTextAreaElement) return;
             e.preventDefault();
           }
         }}
-        className="space-y-4"
+        className="max-w-3xl space-y-6"
       >
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <label className="space-y-1 text-sm text-slate-700">
@@ -269,6 +219,18 @@ export default function NewJobPage() {
             />
           </label>
         </div>
+
+        <label className="text-sm font-medium text-gray-700">
+          <span>Job Description</span>
+          <textarea
+            name="description"
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+            placeholder="Describe the role, responsibilities, requirements, and expectations..."
+            className="mt-1 w-full rounded-lg border border-gray-300 p-4 min-h-[150px]"
+            rows={6}
+          />
+        </label>
 
         <label className="space-y-1 text-sm text-slate-700">
           <span>Required Skills</span>
@@ -317,60 +279,6 @@ export default function NewJobPage() {
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <label className="space-y-1 text-sm text-slate-700">
-            <span>Salary Budget</span>
-            <div className="flex items-center gap-3">
-              <select
-                className="w-[180px] rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
-                value={salaryType}
-                onChange={(e) => {
-                  const value = e.target.value as "range" | "not_specified";
-                  setSalaryType(value);
-                  if (value === "not_specified") {
-                    setSalaryBudget(null);
-                    setSalaryBudgetInput("");
-                  }
-                }}
-              >
-                <option value="range">Salary Range</option>
-                <option value="not_specified">Prefer not to say</option>
-              </select>
-              {salaryType === "range" && (
-                <>
-                  <div className="relative w-[120px]">
-                    <select
-                      className="w-full appearance-none rounded-md border border-slate-300 bg-white px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
-                      value={salaryCurrency}
-                      onChange={(e) =>
-                        setSalaryCurrency(e.target.value as Currency)
-                      }
-                    >
-                      <option value="INR">INR (₹)</option>
-                      <option value="USD">USD ($)</option>
-                      <option value="EUR">EUR (€)</option>
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                  </div>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={salaryBudgetInput}
-                    onChange={(e) => {
-                      const { display, numeric } = formatCurrencyInput(
-                        e.target.value,
-                        salaryCurrency,
-                        salaryCurrencySymbol
-                      );
-                      setSalaryBudgetInput(display);
-                      setSalaryBudget(numeric);
-                    }}
-                    className="w-[200px] rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
-                    placeholder={`${salaryCurrencySymbol}1,00,000`}
-                  />
-                </>
-              )}
-            </div>
-          </label>
-          <label className="space-y-1 text-sm text-slate-700">
             <span>Seniority</span>
             <input
               value={form.seniority}
@@ -389,8 +297,7 @@ export default function NewJobPage() {
             !form.title.trim() ||
             !form.department.trim() ||
             !form.seniority.trim() ||
-            !requiredSkills.length ||
-            (salaryType === "range" && salaryBudget == null)
+            !requiredSkills.length
           }
         >
           {loading ? "Publishing..." : "Publish"}

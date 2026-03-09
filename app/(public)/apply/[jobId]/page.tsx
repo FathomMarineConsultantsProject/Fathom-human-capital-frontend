@@ -8,7 +8,7 @@ type Job = {
   id: string;
   title: string;
   department: string;
-  salary_budget: number | null;
+  description?: string | null;
   required_skills: string[] | null;
   seniority: string | null;
   status: string;
@@ -39,28 +39,32 @@ export default async function ApplyPage({
   }
 
   return (
-    <div className="space-y-6">
-      <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h1 className="text-2xl font-semibold text-slate-900">
-          Apply for: {jobData.title}
-        </h1>
-        <dl className="mt-4 grid gap-2 text-sm">
+    <div className="max-w-4xl mx-auto space-y-6">
+      <div className="bg-white border rounded-lg p-6 space-y-4">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold text-slate-900">
+            Apply for: {jobData.title}
+          </h1>
+        </div>
+
+        <div className="space-y-3">
           <div>
-            <dt className="text-slate-500">Department</dt>
-            <dd className="font-medium text-slate-900">{jobData.department}</dd>
+            <p className="text-sm font-medium text-gray-600">Department</p>
+            <p className="text-sm text-gray-700 leading-relaxed">
+              {jobData.department}
+            </p>
           </div>
-          {jobData.salary_budget != null && (
-            <div>
-              <dt className="text-slate-500">Salary Budget</dt>
-              <dd className="font-medium text-slate-900">
-                {typeof jobData.salary_budget === "number"
-                  ? jobData.salary_budget.toLocaleString()
-                  : jobData.salary_budget}
-              </dd>
-            </div>
-          )}
-        </dl>
+
+          <div>
+            <p className="text-sm font-medium text-gray-600">Job Description</p>
+            <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+              {jobData.description?.trim() || "—"}
+            </p>
+          </div>
+        </div>
       </div>
+
+      <hr className="my-6 border-gray-200" />
 
       <ApplicationForm jobId={jobId} />
     </div>

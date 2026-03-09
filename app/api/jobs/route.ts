@@ -10,8 +10,11 @@ export async function POST(req: Request) {
       .insert({
         title: payload.title,
         department: payload.department,
+        description: payload.description ?? "",
         required_skills: payload.required_skills,
-        salary_budget: payload.salary_budget,
+        // salary_budget is intentionally not collected in the UI;
+        // keep the column for analytics and backfill with a safe default.
+        salary_budget: payload.salary_budget ?? 0,
         seniority: payload.seniority,
         status: payload.status ?? "active",
         linkedin_posted: false

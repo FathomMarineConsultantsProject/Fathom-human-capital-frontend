@@ -1,34 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import PhoneInput from "react-phone-number-input/input";
 import { isValidPhoneNumber } from "react-phone-number-input";
-import { ChevronDown } from "lucide-react";
 import "react-phone-number-input/style.css";
 
 type Props = { jobId: string };
-
-type Currency = "INR" | "USD" | "EUR";
-
-function formatCurrencyInput(
-  raw: string,
-  currency: Currency,
-  symbol: string
-) {
-  const digits = raw.replace(/[^\d]/g, "");
-  if (!digits) {
-    return { display: "", numeric: null as number | null };
-  }
-  const numeric = Number(digits);
-  const formatter = new Intl.NumberFormat(
-    currency === "INR" ? "en-IN" : "en-US"
-  );
-  return {
-    display: `${symbol}${formatter.format(numeric)}`,
-    numeric
-  };
-}
 
 export default function ApplicationForm({ jobId }: Props) {
   const [loading, setLoading] = useState(false);
@@ -48,20 +26,7 @@ export default function ApplicationForm({ jobId }: Props) {
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const [skills, setSkills] = useState<string[]>([]);
   const [skillInput, setSkillInput] = useState("");
-  const [expectedSalary, setExpectedSalary] = useState<number | null>(null);
-  const [expectedSalaryInput, setExpectedSalaryInput] = useState("");
-  const [currency, setCurrency] = useState<Currency>("INR");
   const [resumeFile, setResumeFile] = useState<File | null>(null);
-
-  const currencySymbol = useMemo(
-    () =>
-      ({
-        INR: "₹",
-        USD: "$",
-        EUR: "€"
-      }[currency]),
-    [currency]
-  );
 
   function addSkill(raw: string) {
     const value = raw.trim();
@@ -76,19 +41,6 @@ export default function ApplicationForm({ jobId }: Props) {
   function removeSkill(skill: string) {
     setSkills((prev) => prev.filter((s) => s !== skill));
   }
-
-  useEffect(() => {
-    if (expectedSalary != null) {
-      const { display } = formatCurrencyInput(
-        expectedSalary.toString(),
-        currency,
-        currencySymbol
-      );
-      setExpectedSalaryInput(display);
-    } else {
-      setExpectedSalaryInput("");
-    }
-  }, [currency, currencySymbol, expectedSalary]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -137,8 +89,6 @@ export default function ApplicationForm({ jobId }: Props) {
           years_experience: form.years_experience
             ? Number(form.years_experience)
             : null,
-          expected_salary:
-            typeof expectedSalary === "number" ? expectedSalary : null,
           education: form.education || null,
           resume_url: resumeUrl,
           source: form.source || null,
@@ -285,42 +235,6 @@ export default function ApplicationForm({ jobId }: Props) {
             }
             className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2"
           />
-        </label>
-
-        <label className="block space-y-1 text-sm text-slate-700">
-          <span>Expected Salary</span>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <div className="relative w-full sm:w-32">
-              <select
-                className="w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 py-2 pr-8 text-sm"
-                value={currency}
-                onChange={(e) =>
-                  setCurrency(e.target.value as Currency)
-                }
-              >
-                <option value="INR">INR (₹)</option>
-                <option value="USD">USD ($)</option>
-                <option value="EUR">EUR (€)</option>
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-            </div>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={expectedSalaryInput}
-              onChange={(e) => {
-                const { display, numeric } = formatCurrencyInput(
-                  e.target.value,
-                  currency,
-                  currencySymbol
-                );
-                setExpectedSalaryInput(display);
-                setExpectedSalary(numeric);
-              }}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
-              placeholder={`${currencySymbol}1,00,000`}
-            />
-          </div>
         </label>
 
         <label className="block space-y-1 text-sm text-slate-700">

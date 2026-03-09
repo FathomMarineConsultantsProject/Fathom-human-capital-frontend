@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   DndContext,
   PointerSensor,
@@ -22,10 +22,16 @@ import { supabase } from "@/lib/supabase";
 type Application = {
   id: string;
   name: string;
+  email?: string | null;
+  phone?: string | null;
   status: string;
   skills?: string[] | null;
   extracted_skills?: string[] | null;
   years_experience?: number | null;
+  education?: string | null;
+  source?: string | null;
+  resume_text?: string | null;
+  resume_url?: string | null;
   job?: { title: string } | { title: string }[] | null;
   jobs?: { title: string } | null;
 };
@@ -169,7 +175,12 @@ export default function PredictivePage() {
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [results, setResults] = useState<Record<string, AIResult>>({});
+  const [activeAnalysisId, setActiveAnalysisId] = useState<string | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<AIResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [selectedCandidate, setSelectedCandidate] = useState<Application | null>(
+    null
+  );
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -274,15 +285,23 @@ export default function PredictivePage() {
     }
   }
 
-  async function analyze(applicationId: string) {
-    setLoadingId(applicationId);
+  async function analyze(candidate: Application) {
+    if (activeAnalysisId === candidate.id) {
+      setActiveAnalysisId(null);
+      setAnalysisResult(null);
+      return;
+    }
+
+    setActiveAnalysisId(candidate.id);
+    setAnalysisResult(null);
+    setLoadingId(candidate.id);
     setError(null);
 
     try {
       const res = await fetch("/api/ai/fit-score", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ applicationId })
+        body: JSON.stringify({ applicationId: candidate.id })
       });
 
       const data = await res.json();
@@ -291,12 +310,21 @@ export default function PredictivePage() {
         throw new Error(data.error || "AI request failed");
       }
 
-      setResults((prev) => ({ ...prev, [applicationId]: data }));
+      setResults((prev) => ({ ...prev, [candidate.id]: data }));
+      setAnalysisResult(data);
     } catch (err: any) {
       setError(err.message);
+      setActiveAnalysisId(null);
+      setAnalysisResult(null);
     } finally {
       setLoadingId(null);
     }
+  }
+
+  function getSkillTags(app: Application): string[] {
+    const raw = app.extracted_skills ?? app.skills;
+    if (!raw || !Array.isArray(raw)) return [];
+    return raw.filter(Boolean).map((s) => String(s).trim()).filter(Boolean);
   }
 
   const pipeline = useMemo(() => {
@@ -373,19 +401,30 @@ export default function PredictivePage() {
           </thead>
           <tbody>
             {applications.map((app) => (
-              <>
-                <tr key={app.id} className="border-b">
+              <Fragment key={app.id}>
+                <tr className="border-b">
                   <td className="p-3">{app.name}</td>
                   <td className="p-3">{getJobTitle(app)}</td>
                   <td className="p-3 capitalize">{app.status}</td>
                   <td className="p-3 text-right">
                     <div className="flex items-center justify-end gap-2">
                       <button
-                        onClick={() => analyze(app.id)}
+                        onClick={() => analyze(app)}
                         className="px-3 py-1 bg-black text-white rounded text-xs"
                         disabled={loadingId === app.id}
                       >
-                        {loadingId === app.id ? "Analyzing..." : "Analyze"}
+                        {loadingId === app.id
+                          ? "Analyzing..."
+                          : activeAnalysisId === app.id
+                          ? "Close"
+                          : "Analyze"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCandidate(app)}
+                        className="px-3 py-1 rounded bg-gray-200 text-xs text-slate-800 hover:bg-gray-300"
+                      >
+                        Details
                       </button>
                       <button
                         type="button"
@@ -398,19 +437,18 @@ export default function PredictivePage() {
                     </div>
                   </td>
                 </tr>
-
-                {results[app.id] && (
+                {activeAnalysisId === app.id && analysisResult && (
                   <tr className="bg-gray-50">
                     <td colSpan={4} className="p-4 space-y-3">
                       <div>
                         <span className="font-medium">Match Score:</span>{" "}
-                        {results[app.id].matchScore}%
+                        {analysisResult.matchScore}%
                       </div>
 
                       <div>
                         <span className="font-medium">Strengths:</span>
                         <ul className="list-disc list-inside text-sm">
-                          {results[app.id].strengths.map((s, i) => (
+                          {analysisResult.strengths.map((s, i) => (
                             <li key={i}>{s}</li>
                           ))}
                         </ul>
@@ -419,7 +457,7 @@ export default function PredictivePage() {
                       <div>
                         <span className="font-medium">Skill Gaps:</span>
                         <ul className="list-disc list-inside text-sm">
-                          {results[app.id].skillGaps.map((g, i) => (
+                          {analysisResult.skillGaps.map((g, i) => (
                             <li key={i}>{g}</li>
                           ))}
                         </ul>
@@ -428,7 +466,7 @@ export default function PredictivePage() {
                       <div>
                         <span className="font-medium">Summary:</span>
                         <div className="mt-2 space-y-4 text-sm text-gray-600">
-                          {results[app.id].summary
+                          {analysisResult.summary
                             .split(
                               /\s*(?=Strengths:|Weaknesses:|Hiring Recommendation:)/i
                             )
@@ -443,11 +481,113 @@ export default function PredictivePage() {
                     </td>
                   </tr>
                 )}
-              </>
+              </Fragment>
             ))}
           </tbody>
         </table>
       </div>
+
+      {selectedCandidate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-2xl rounded-lg bg-white p-6 shadow-xl space-y-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900">
+                  Candidate Details
+                </h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  {getJobTitle(selectedCandidate)} •{" "}
+                  {String(selectedCandidate.status || "—").toUpperCase()}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedCandidate(null)}
+                className="rounded bg-slate-100 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-200"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900">
+                    Candidate Info
+                  </h3>
+                  <div className="mt-2 space-y-2 text-sm text-slate-700">
+                    <p>
+                      <span className="font-medium">Name:</span>{" "}
+                      {selectedCandidate.name}
+                    </p>
+                    <p>
+                      <span className="font-medium">Email:</span>{" "}
+                      {selectedCandidate.email ?? "—"}
+                    </p>
+                    <p>
+                      <span className="font-medium">Phone:</span>{" "}
+                      {selectedCandidate.phone ?? "—"}
+                    </p>
+                    <p>
+                      <span className="font-medium">Experience:</span>{" "}
+                      {selectedCandidate.years_experience != null
+                        ? `${selectedCandidate.years_experience} years`
+                        : "—"}
+                    </p>
+                    <p>
+                      <span className="font-medium">Education:</span>{" "}
+                      {selectedCandidate.education ?? "—"}
+                    </p>
+                    <p>
+                      <span className="font-medium">Source:</span>{" "}
+                      {selectedCandidate.source ?? "—"}
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900">Skills</h3>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {getSkillTags(selectedCandidate).length === 0 ? (
+                      <span className="text-sm text-slate-500">—</span>
+                    ) : (
+                      getSkillTags(selectedCandidate).map((skill) => (
+                        <span
+                          key={skill}
+                          className="rounded bg-slate-100 px-2 py-1 text-xs text-slate-800"
+                        >
+                          {skill}
+                        </span>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900">Resume</h3>
+                  {selectedCandidate.resume_url && (
+                    <a
+                      href={selectedCandidate.resume_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-2 inline-block text-sm text-slate-700 underline"
+                    >
+                      Open resume
+                    </a>
+                  )}
+                  {!selectedCandidate.resume_url && (
+                    <p className="mt-2 text-sm text-slate-500">
+                      No resume uploaded
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="pt-4">
         <h2 className="text-xl font-semibold">Candidate Pipeline</h2>
