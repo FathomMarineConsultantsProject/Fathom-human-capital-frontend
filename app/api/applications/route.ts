@@ -88,6 +88,10 @@ export async function POST(req: Request) {
         : Array.isArray(skills)
           ? skills
           : null;
+    const normalizedGender =
+      typeof gender === "string" && gender.trim()
+        ? gender.trim().toLowerCase()
+        : null;
 
     const { data, error } = await supabase
       .from("applications")
@@ -102,7 +106,7 @@ export async function POST(req: Request) {
         education: education ?? null,
         resume_url: resume_url ?? null,
         source: source ?? null,
-        gender: gender ?? null,
+        gender: normalizedGender,
         status: "applied",
         applied_at: new Date().toISOString()
       })
@@ -126,4 +130,3 @@ export async function POST(req: Request) {
     );
   }
 }
-

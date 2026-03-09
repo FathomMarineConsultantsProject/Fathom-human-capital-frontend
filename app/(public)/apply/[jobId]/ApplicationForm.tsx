@@ -77,6 +77,10 @@ export default function ApplicationForm({ jobId }: Props) {
         setUploading(false);
       }
 
+      const normalizedGender =
+        form.gender && form.gender.trim()
+          ? form.gender.toLowerCase().trim()
+          : null;
       const res = await fetch("/api/applications", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -92,7 +96,7 @@ export default function ApplicationForm({ jobId }: Props) {
           education: form.education || null,
           resume_url: resumeUrl,
           source: form.source || null,
-          gender: form.gender || null
+          gender: normalizedGender
         })
       });
 
@@ -275,10 +279,10 @@ export default function ApplicationForm({ jobId }: Props) {
             className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2"
           >
             <option value="">Select</option>
-            <option value="Male">Male</option>
-            <option value="Female">Female</option>
-            <option value="Other">Other</option>
-            <option value="Prefer not to say">Prefer not to say</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+            <option value="other">Other</option>
+            <option value="prefer not to say">Prefer not to say</option>
           </select>
         </label>
 
